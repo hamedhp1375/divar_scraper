@@ -3,6 +3,7 @@ from fileinput import close
 from fastapi import FastAPI
 from pydantic import BaseModel
 from playwright.sync_api import sync_playwright
+
 import time
 
 app = FastAPI()
@@ -43,6 +44,7 @@ def send_otp(data: PhoneRequest):
             page.fill('input[name="mobile"]', data.number)
             page.click('button.auth-actions__submit-button')
             message = "OTP ارسال شد ✅"
+
         else:
             page.close()
             playwright_context.close()
@@ -93,6 +95,7 @@ def verify_otp(data: OTPRequest):
 
     except Exception as e:
         return {"error": str(e)}
+
 
  # uvicorn test2:app --reload
 #  جهت تست
