@@ -1,21 +1,55 @@
+from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 from playwright.sync_api import sync_playwright
 import time
-
-from login import playwright_context
 
 app = FastAPI()
 
 PROFILE_PATH = "divar_profile"
 
+scheduler = BackgroundScheduler()
+# برای راهندازی وب هوک
+# نیاز به وب سرویس دارد برای فرستادن پاسخ
+#
+# def call_get_urls():
+#     try:
+#         response = requests.get("http://127.0.0.1:8000/get-urls")
+#         print("Hook Sent ✅", response.status_code)
+#     except Exception as e:
+#         print("Error ❌", e)
+#     urls = get_urls()
+#     # ارسال به وب‌هوک
+#     requests.post("https://example.com/hook", json=urls)
+#
+#
+# # اضافه کردن job هر 5 دقیقه
+# scheduler.add_job(
+#     call_get_urls,
+#     "interval",
+#     minutes=1,
+#     max_instances=1,  # فقط یک اجرا همزمان
+#     coalesce=True  # اگر یکی جا افتاد، یکی اجرا کن
+# )
+#
+#
+# @app.on_event("startup")
+# def start_scheduler():
+#     scheduler.start()
+#     print("Scheduler started 🚀")
+#
+#
+# @app.on_event("shutdown")
+# def shutdown_scheduler():
+#     scheduler.shutdown()
+
 
 def click_unread_filter(page):
     """کلیک روی چیپ خوانده‌نشده"""
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(5000)
     unread_chip = page.locator("span.kt-chip:has-text('خوانده‌نشده')")
     if unread_chip.count() > 0:
         unread_chip.first.click()
-        page.wait_for_timeout(2000)
+        page.wait_for_timeout(5000)
 
 
 def open_all_chats_and_get_urls(page):
@@ -59,7 +93,7 @@ def get_urls():
 
             # 👇 فیلتر خوانده نشده (اختیاری)
             click_unread_filter(page)
-
+            time.sleep(3)
             # گرفتن URLها
             urls = open_all_chats_and_get_urls(page)
 
@@ -71,6 +105,17 @@ def get_urls():
 
     except Exception as e:
         return {"error": str(e)}
-    # uvicorn unread_massage:app --reload
-    # جهت تست
-    # http://127.0.0.1:8000/get-urls
+# برای استپ کردن وب هوک
+
+# @app.post("/stop-scheduler")
+# def stop_scheduler():
+#     scheduler.shutdown()
+#     return {"message": "Scheduler stopped ✅"}
+
+
+# uvicorn unread_massage:app --reload
+# جهت تست
+# http://127.0.0.1:8000/get-urls
+
+# جهت تست وب هوک
+# uvicorn unread_massage:app
