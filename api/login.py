@@ -1,108 +1,83 @@
-from fileinput import close
-
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 from playwright.sync_api import sync_playwright
-
-import time
 
 app = FastAPI()
 
 PROFILE_PATH = "divar_profile"
 
-# نگه داشتن context و page بین درخواست‌ها
+playwright_instance = None
 playwright_context = None
 page = None
 
-# مدل برای دریافت شماره
-class PhoneRequest(BaseModel):
-    number: str
 
-# مدل برای OTP
-class OTPRequest(BaseModel):
-    otp: str
+class AuthRequest(BaseModel):
+    number: Optional[str] = None
+    otp: Optional[str] = None
 
 
-@app.post("/send-otp")
-def send_otp(data: PhoneRequest):
-    global playwright_context, page
-    p = sync_playwright().start()
-    playwright_context = p.chromium.launch_persistent_context(
-        user_data_dir=PROFILE_PATH,
-        headless=False
-    )
+@app.post("/auth")
+def auth(data: AuthRequest):
+    global playwright_instance, playwright_context, page
 
-    page = playwright_context.new_page()
-    page.goto("https://divar.ir/chat")
+    # 🔥 اگر هنوز Playwright روشن نشده باشه
+    if playwright_instance is None:
+        playwright_instance = sync_playwright().start()
 
-    login_button = page.locator("button:has-text('ورود به حساب کاربری')")
+        playwright_context = playwright_instance.chromium.launch_persistent_context(
+            user_data_dir=PROFILE_PATH,
+            headless=False
+        )
 
-    try:
+        page = playwright_context.new_page()
+        page.goto("https://divar.ir/chat")
+
+        print("Playwright Started ✅")
+
+    # 🔹 اگر شماره ارسال شد
+    if data.number:
+        login_button = page.locator("button:has-text('ورود به حساب کاربری')")
+
         if login_button.count() > 0:
             login_button.first.click()
             page.wait_for_selector('input[name="mobile"]')
             page.fill('input[name="mobile"]', data.number)
             page.click('button.auth-actions__submit-button')
-            message = "OTP ارسال شد ✅"
+            return {"message": "OTP ارسال شد ✅"}
 
         else:
-            page.close()
-            playwright_context.close()
-            page = None
-            playwright_context = None
-            message = "قبلاً لاگین شده‌ای ✅"
+            if page:
+                page.close()
+                page = None
 
-        # 👇 بستن صفحه و context در هر صورت
-            p.stop()
+            if playwright_context:
+                playwright_context.close()
+                playwright_context = None
 
-        return {"message": message}
+            if playwright_instance:
+                playwright_instance.stop()
+                playwright_instance = None
+            return {"message": "قبلاً لاگین شده‌ای ✅"}
 
-    except Exception as e:
-        # اگر خطایی رخ داد، page و context بسته بشن
-        if page:
-            page.close()
-        if playwright_context:
-            playwright_context.close()
-        page = None
-        playwright_context = None
-        return {"error": str(e)}
-
-
-
-@app.post("/verify-otp")
-def verify_otp(data: OTPRequest):
-    global page, playwright_context
-
-    if page is None:
-        return {"error": "ابتدا /send-otp را صدا بزنید!"}
-
-    try:
-        # پر کردن OTP و ورود
+    # 🔹 اگر OTP ارسال شد
+    elif data.otp:
         page.wait_for_selector('input[name="code"]')
         page.fill('input[name="code"]', data.otp)
         page.keyboard.press("Enter")
         page.wait_for_timeout(3000)
+        if page:
+            page.close()
+            page = None
 
-        # بستن صفحه و context
-        page.close()
-        playwright_context.close()
+        if playwright_context:
+            playwright_context.close()
+            playwright_context = None
 
-        # پاک کردن referenceها
-        page = None
-        playwright_context = None
+        if playwright_instance:
+            playwright_instance.stop()
+            playwright_instance = None
+        return {"message": "لاگین موفق ✅"}
 
-        return {"message": "لاگین با موفقیت انجام شد و صفحه بسته شد ✅"}
-
-    except Exception as e:
-        return {"error": str(e)}
-
-
- # uvicorn test2:app --reload
-#  جهت تست
-# http://127.0.0.1:8000/send-otp
-# {
-#   "number": "951549"
-# }
-# http://127.0.0.1:8000/verify-otp
-# {
-# "otp":"1234"
+    else:
+        raise HTTPException(status_code=400, detail="number یا otp ارسال کن")
