@@ -7,7 +7,7 @@ import requests
 
 app = FastAPI()
 
-PROFILE_PATH = "../divar_profile"
+PROFILE_PATH = "divar_profile"
 
 scheduler = BackgroundScheduler()
 # برای راهندازی وب هوک
